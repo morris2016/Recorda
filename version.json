@@ -1,5 +1,5 @@
 {
-  "version": "0.1.2",
-  "url": "https://github.com/morris2016/Recorda/releases/download/v0.1.2/recorda-Setup-0.1.2.exe",
-  "notes": "Auto-update: recorda now downloads and runs the installer for you."
+  "version": "0.1.3",
+  "url": "https://github.com/morris2016/Recorda/releases/download/v0.1.3/recorda-Setup-0.1.3.exe",
+  "notes": "Brand icon: red record dot on dark squircle, embedded in app + installer + tray."
 }

@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" shape-rendering="geometricPrecision">
+  <defs>
+    <!-- App icon background: deep navy → near-black, top-left highlight -->
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#222b3e"/>
+      <stop offset="55%"  stop-color="#0f1320"/>
+      <stop offset="100%" stop-color="#070912"/>
+    </linearGradient>
+
+    <!-- Inner-edge highlight that gives the squircle its glassy look -->
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#ffffff" stop-opacity="0.10"/>
+      <stop offset="40%"  stop-color="#ffffff" stop-opacity="0.0"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.25"/>
+    </linearGradient>
+
+    <!-- Record-dot radial: bright centre, deep ruby falloff -->
+    <radialGradient id="dot" cx="0.42" cy="0.40" r="0.62">
+      <stop offset="0%"   stop-color="#ff8a8a"/>
+      <stop offset="22%"  stop-color="#ff5757"/>
+      <stop offset="65%"  stop-color="#e02424"/>
+      <stop offset="100%" stop-color="#9e1818"/>
+    </radialGradient>
+
+    <!-- Soft red bloom behind the dot -->
+    <radialGradient id="halo" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%"   stop-color="#ff3838" stop-opacity="0.55"/>
+      <stop offset="55%"  stop-color="#c81e1e" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Specular highlight on top of the dot -->
+    <radialGradient id="spec" cx="0.42" cy="0.30" r="0.45">
+      <stop offset="0%"   stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="55%"  stop-color="#ffffff" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Squircle base. Radius 224 ≈ macOS-style continuous-corner -->
+  <rect x="0" y="0" width="1024" height="1024" rx="224" ry="224" fill="url(#bgGrad)"/>
+
+  <!-- Subtle 1.5px inner border -->
+  <rect x="3" y="3" width="1018" height="1018" rx="222" ry="222"
+        fill="none" stroke="#2a3344" stroke-width="2" opacity="0.85"/>
+
+  <!-- Rim sheen -->
+  <rect x="0" y="0" width="1024" height="1024" rx="224" ry="224" fill="url(#rim)"/>
+
+  <!-- Faint outer record ring (the "stop" hairline you see on classic record buttons) -->
+  <circle cx="512" cy="512" r="324" fill="none" stroke="#2c3245" stroke-width="3"/>
+  <circle cx="512" cy="512" r="324" fill="none" stroke="#3b82f6" stroke-width="3" opacity="0.0"/>
+
+  <!-- Halo bloom -->
+  <circle cx="512" cy="512" r="380" fill="url(#halo)"/>
+
+  <!-- Main record dot -->
+  <circle cx="512" cy="512" r="270" fill="url(#dot)"/>
+
+  <!-- Inner stroke for crispness at small sizes -->
+  <circle cx="512" cy="512" r="270" fill="none" stroke="#7a0d0d" stroke-width="2" opacity="0.55"/>
+
+  <!-- Specular highlight -->
+  <circle cx="512" cy="512" r="270" fill="url(#spec)"/>
+
+  <!-- Tiny inner highlight to give a "live" feel -->
+  <ellipse cx="430" cy="410" rx="70" ry="34" fill="#ffffff" opacity="0.18"/>
+</svg>
