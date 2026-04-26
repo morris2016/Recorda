@@ -1,0 +1,10 @@
+node_modules/
+dist/
+dist-electron/
+release/
+resources/bin/ffmpeg.exe
+resources/bin/ffprobe.exe
+.vite/
+*.log
+.DS_Store
+Thumbs.db
