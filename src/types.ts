@@ -76,6 +76,19 @@ export interface UpdateInfo {
   error?: string;
 }
 
+export interface UpdateProgress {
+  phase: "checking" | "available" | "downloading" | "ready" | "installing" | "idle" | "error";
+  current?: string;
+  latest?: string;
+  notes?: string;
+  url?: string;
+  receivedBytes?: number;
+  totalBytes?: number;
+  percent?: number;
+  errorMessage?: string;
+  installerPath?: string;
+}
+
 declare global {
   interface Window {
     recorda: {
@@ -92,7 +105,10 @@ declare global {
       listRecentRecordings: () => Promise<RecentRecording[]>;
       checkForUpdate: () => Promise<UpdateInfo>;
       getCurrentVersion: () => Promise<string>;
+      getUpdateState: () => Promise<UpdateProgress>;
+      downloadAndInstallUpdate: () => Promise<{ ok: boolean; error?: string }>;
       openDownload: (url: string) => void;
+      onUpdateState: (cb: (s: UpdateProgress) => void) => () => void;
       minimize: () => void;
       maximizeToggle: () => void;
       hideToTray: () => void;

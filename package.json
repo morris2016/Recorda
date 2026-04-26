@@ -1,6 +1,6 @@
 {
   "name": "recorda",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Modern Windows screen recorder — Electron + React + FFmpeg",
   "private": true,
   "main": "dist-electron/main.js",

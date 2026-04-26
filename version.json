@@ -1,5 +1,5 @@
 {
-  "version": "0.1.1",
-  "url": "https://github.com/morris2016/Recorda/releases/latest",
-  "notes": "Fix: black screen after install (renderer asset path)."
+  "version": "0.1.2",
+  "url": "https://github.com/morris2016/Recorda/releases/download/v0.1.2/recorda-Setup-0.1.2.exe",
+  "notes": "Auto-update: recorda now downloads and runs the installer for you."
 }

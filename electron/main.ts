@@ -15,7 +15,7 @@ import fs from "node:fs";
 import { isDev, rendererURL, rendererFile, preloadPath, appIconPath } from "./paths";
 import { listAudioDevices, listDisplays, detectEncoders } from "./devices";
 import { recorder, RecordRequest, defaultOutputDir } from "./recorder";
-import { checkForUpdate, getCurrentVersion, openDownloadInBrowser } from "./updater";
+import { updater, getCurrentVersion, openDownloadInBrowser } from "./updater";
 
 let mainWin: BrowserWindow | null = null;
 let regionWin: BrowserWindow | null = null;
@@ -151,9 +151,25 @@ function setupIpc() {
   });
 
   // Updates
-  ipcMain.handle("update:check", () => checkForUpdate());
+  ipcMain.handle("update:check", () => updater.check());
   ipcMain.handle("update:current-version", () => getCurrentVersion());
+  ipcMain.handle("update:state", () => updater.getState());
+  ipcMain.handle("update:download-and-install", async () => {
+    const s = updater.getState();
+    if (!s.url || !s.latest) return { ok: false, error: "no update info" };
+    try {
+      await updater.download(s.url, s.latest);
+      await updater.installAndQuit();
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: (e as Error).message };
+    }
+  });
   ipcMain.on("update:open-download", (_e, url: string) => openDownloadInBrowser(url));
+
+  updater.on("state", (s) => {
+    BrowserWindow.getAllWindows().forEach((w) => w.webContents.send("update:state-change", s));
+  });
 
   ipcMain.on("win:minimize", () => mainWin?.minimize());
   ipcMain.on("win:maximize-toggle", () => {
@@ -256,6 +272,24 @@ app.whenReady().then(() => {
   createTray();
   registerHotkeys();
   setupIpc();
+
+  // Background update check 5 s after launch — runs in main process, so it
+  // works even if the renderer fails to load. If a newer version is found,
+  // we offer a native dialog (renderer-independent) to download + install.
+  setTimeout(async () => {
+    try {
+      const info = await updater.check();
+      if (info.available) {
+        await updater.promptInstall(mainWin);
+      }
+    } catch {
+      // silent — best-effort
+    }
+  }, 5_000);
+  // Re-check every 6 hours.
+  setInterval(async () => {
+    try { await updater.check(); } catch { /* ignore */ }
+  }, 6 * 60 * 60 * 1000);
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow();

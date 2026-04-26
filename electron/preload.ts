@@ -23,7 +23,14 @@ const api = {
   // Updates
   checkForUpdate: () => ipcRenderer.invoke("update:check"),
   getCurrentVersion: () => ipcRenderer.invoke("update:current-version"),
+  getUpdateState: () => ipcRenderer.invoke("update:state"),
+  downloadAndInstallUpdate: () => ipcRenderer.invoke("update:download-and-install"),
   openDownload: (url: string) => ipcRenderer.send("update:open-download", url),
+  onUpdateState: (cb: (s: unknown) => void) => {
+    const handler = (_: unknown, s: unknown) => cb(s);
+    ipcRenderer.on("update:state-change", handler);
+    return () => ipcRenderer.removeListener("update:state-change", handler);
+  },
 
   // Window
   minimize: () => ipcRenderer.send("win:minimize"),
