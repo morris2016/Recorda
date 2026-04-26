@@ -1,7 +1,7 @@
-import { Circle, Square, FolderOpen, FolderInput, Activity } from "lucide-react";
+import { Circle, Square, FolderOpen, FolderInput } from "lucide-react";
 import { useStore } from "../store";
 import { useEffect, useState } from "react";
-import { formatDuration, formatBytes } from "../lib/format";
+import { formatDuration } from "../lib/format";
 import { cn } from "../lib/cn";
 
 export function RecordPanel() {
@@ -97,16 +97,6 @@ export function RecordPanel() {
           </button>
         )}
 
-        {isRecording && (
-          <div className="flex items-center gap-5 text-[11px] text-text-faint pt-1">
-            <span className="flex items-center gap-1"><Activity size={11} /> {recState.fps?.toFixed(0) ?? 0} fps</span>
-            <span>{recState.bitrateKbps?.toFixed(0) ?? 0} kbps</span>
-            <span>{formatBytes(recState.totalSizeBytes)}</span>
-            {!!recState.droppedFrames && recState.droppedFrames > 0 && (
-              <span className="text-warn">drop {recState.droppedFrames}</span>
-            )}
-          </div>
-        )}
       </div>
 
       <div>

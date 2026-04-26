@@ -1,5 +1,5 @@
 {
-  "version": "0.1.0",
+  "version": "0.1.1",
   "url": "https://github.com/morris2016/Recorda/releases/latest",
-  "notes": "Initial release."
+  "notes": "Fix: black screen after install (renderer asset path)."
 }

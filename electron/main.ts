@@ -12,7 +12,7 @@ import {
 } from "electron";
 import path from "node:path";
 import fs from "node:fs";
-import { isDev, rendererURL, preloadPath, appIconPath } from "./paths";
+import { isDev, rendererURL, rendererFile, preloadPath, appIconPath } from "./paths";
 import { listAudioDevices, listDisplays, detectEncoders } from "./devices";
 import { recorder, RecordRequest, defaultOutputDir } from "./recorder";
 import { checkForUpdate, getCurrentVersion, openDownloadInBrowser } from "./updater";
@@ -42,7 +42,8 @@ function createMainWindow() {
     },
   });
 
-  mainWin.loadURL(rendererURL("index.html"));
+  if (isDev()) mainWin.loadURL(rendererURL("index.html"));
+  else mainWin.loadFile(rendererFile("index.html"));
   mainWin.once("ready-to-show", () => mainWin?.show());
 
   mainWin.on("close", (e) => {
@@ -230,7 +231,8 @@ async function openRegionWindow(): Promise<{ x: number; y: number; width: number
   });
 
   regionWin.setIgnoreMouseEvents(false);
-  regionWin.loadURL(rendererURL("region.html"));
+  if (isDev()) regionWin.loadURL(rendererURL("region.html"));
+  else regionWin.loadFile(rendererFile("region.html"));
   regionWin.once("ready-to-show", () => {
     regionWin?.show();
     regionWin?.setAlwaysOnTop(true, "screen-saver");

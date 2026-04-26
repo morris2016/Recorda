@@ -44,11 +44,14 @@ export function ffprobePath(): string {
 }
 
 export function rendererURL(htmlFile: "index.html" | "region.html"): string {
-  if (isDev()) {
-    const base = "http://localhost:5173";
-    return htmlFile === "index.html" ? base : `${base}/${htmlFile}`;
-  }
-  return `file://${path.join(projectRoot(), "dist", htmlFile)}`;
+  // Used only in dev; in prod we go through loadFile with rendererFile().
+  const base = "http://localhost:5173";
+  return htmlFile === "index.html" ? base : `${base}/${htmlFile}`;
+}
+
+export function rendererFile(htmlFile: "index.html" | "region.html"): string {
+  // dist-electron/main.js -> ../dist/<htmlFile>. Works inside app.asar too.
+  return path.join(__dirname, "..", "dist", htmlFile);
 }
 
 export function preloadPath(): string {
