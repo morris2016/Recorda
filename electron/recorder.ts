@@ -4,6 +4,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { app } from "electron";
 import { ffmpegPath } from "./paths";
+import { startAudioCapture, stopAudioCapture } from "./audio-capture";
 
 export type Mode = "fullscreen" | "region";
 export type Quality = "low" | "medium" | "high" | "lossless";
@@ -54,10 +55,15 @@ function timestampName(): string {
 function buildArgs(req: RecordRequest, outputPath: string): string[] {
   const args: string[] = ["-hide_banner", "-loglevel", "info", "-y"];
 
-  // ---- video input (gdigrab) ----
-  args.push("-f", "gdigrab",
-            "-framerate", String(req.fps),
-            "-draw_mouse", req.captureCursor ? "1" : "0");
+  // Video input only — audio is handled by Chromium's WASAPI loopback in a
+  // hidden renderer (audio-capture.ts), then muxed on stop. Keeping ffmpeg's
+  // input simple gives us better video timing and avoids dshow's flakiness.
+  args.push(
+    "-f", "gdigrab",
+    "-framerate", String(req.fps),
+    "-draw_mouse", req.captureCursor ? "1" : "0",
+    "-thread_queue_size", "1024",
+  );
 
   if (req.mode === "region" && req.region) {
     const r = req.region;
@@ -74,25 +80,6 @@ function buildArgs(req: RecordRequest, outputPath: string): string[] {
       "-video_size", `${req.display.width}x${req.display.height}`,
       "-i", "desktop",
     );
-  }
-
-  // ---- audio inputs ----
-  // System audio via WASAPI loopback (FFmpeg's -f dshow + "audio=virtual-audio-capturer" used to be needed;
-  // modern ffmpeg supports loopback via -f dshow on the default render device — but it's flaky.
-  // Cleanest path on Win10/11 is `-f dshow -i audio="<output device>"` if a loopback driver is available,
-  // OR bind to the system mixer via "-f dshow -i audio=Stereo Mix" if the user enabled it.
-  // We provide the simplest reliable option: dshow microphone if requested. System audio via dshow uses
-  // the user-provided device name (if any).
-  let audioInputs = 0;
-  if (req.captureSystemAudio) {
-    // We'll try the WASAPI default render endpoint via "audio=@device_..." pattern.
-    // To stay portable and simple: capture via dshow with the special "Stereo Mix"-style device the user picked,
-    // OR fall back to none. The renderer offers a device picker for this.
-    // Here we expect the caller to have stuffed a system-audio device name into micDevice if both are off, etc.
-  }
-  if (req.captureMic && req.micDevice) {
-    args.push("-f", "dshow", "-i", `audio=${req.micDevice}`);
-    audioInputs += 1;
   }
 
   // ---- video encoder ----
@@ -119,46 +106,71 @@ function buildArgs(req: RecordRequest, outputPath: string): string[] {
       break;
   }
 
-  // ---- audio encoder ----
-  if (audioInputs > 0) {
-    args.push("-c:a", req.container === "webm" ? "libopus" : "aac");
-    args.push("-b:a", "192k");
-  }
-
   args.push("-movflags", "+faststart");
   args.push(outputPath);
   return args;
 }
 
+function buildMuxArgs(videoPath: string, audioPath: string, outputPath: string, container: Container): string[] {
+  // Copy video, transcode the captured Opus/WebM audio into the target codec
+  // for the chosen container. Use shortest=longest so the output spans both.
+  const audioCodec = container === "webm" ? "libopus" : "aac";
+  return [
+    "-hide_banner",
+    "-loglevel", "info",
+    "-y",
+    "-i", videoPath,
+    "-i", audioPath,
+    "-map", "0:v:0",
+    "-map", "1:a:0",
+    "-c:v", "copy",
+    "-c:a", audioCodec,
+    "-b:a", "192k",
+    "-shortest",
+    "-movflags", "+faststart",
+    outputPath,
+  ];
+}
+
 class Recorder extends EventEmitter {
   private proc: ChildProcess | null = null;
   private state: RecordingState = { status: "idle" };
-  private outputPath = "";
+  private finalOutputPath = "";
+  private videoTempPath = "";
+  private audioRequested = false;
+  private container: Container = "mp4";
   private logBuffer: string[] = [];
 
   getState(): RecordingState {
     return { ...this.state };
   }
 
-  start(req: RecordRequest): RecordingState {
+  async start(req: RecordRequest): Promise<RecordingState> {
     if (this.state.status !== "idle") {
       return { ...this.state, errorMessage: "already recording" };
     }
     fs.mkdirSync(req.outputDir, { recursive: true });
-    const ext = req.container;
-    this.outputPath = path.join(req.outputDir, `recorda ${timestampName()}.${ext}`);
-
-    const args = buildArgs(req, this.outputPath);
-    const ff = ffmpegPath();
+    this.container = req.container;
+    this.audioRequested = !!(req.captureSystemAudio || req.captureMic);
+    this.finalOutputPath = path.join(req.outputDir, `recorda ${timestampName()}.${req.container}`);
+    // If audio is on, video goes to a temp file first; mux step on stop produces
+    // the final container with both streams. Without audio, ffmpeg writes the
+    // final file directly.
+    this.videoTempPath = this.audioRequested
+      ? path.join(app.getPath("temp"), `recorda-video-${Date.now()}.${req.container}`)
+      : this.finalOutputPath;
 
     this.logBuffer = [];
     this.state = {
       status: "starting",
-      outputPath: this.outputPath,
+      outputPath: this.finalOutputPath,
       startedAt: Date.now(),
       pausedDurationMs: 0,
     };
     this.emit("state", this.state);
+
+    const args = buildArgs(req, this.videoTempPath);
+    const ff = ffmpegPath();
 
     try {
       this.proc = spawn(ff, args, { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
@@ -168,36 +180,39 @@ class Recorder extends EventEmitter {
       return this.state;
     }
 
-    this.state = { ...this.state, status: "recording" };
-    this.emit("state", this.state);
-
     this.proc.stderr?.on("data", (chunk: Buffer) => {
       const text = chunk.toString();
       this.logBuffer.push(text);
       if (this.logBuffer.length > 500) this.logBuffer.shift();
       this.parseProgress(text);
     });
-
     this.proc.on("error", (err) => {
       this.state = { status: "error", errorMessage: err.message };
       this.emit("state", this.state);
     });
-
     this.proc.on("close", (code) => {
-      const wasStopping = this.state.status === "stopping";
-      this.proc = null;
-      if (code === 0 || wasStopping) {
-        this.state = { ...this.state, status: "idle" };
-      } else {
-        this.state = {
-          ...this.state,
-          status: "error",
-          errorMessage: `ffmpeg exited with code ${code}\n\n${this.tailLog(20)}`,
-        };
-      }
-      this.emit("state", this.state);
-      this.emit("finalized", this.outputPath, code);
+      this.handleVideoClose(code).catch((e) => {
+        console.error("[recorda] post-record handler crashed:", e);
+        this.state = { ...this.state, status: "error", errorMessage: (e as Error).message };
+        this.emit("state", this.state);
+      });
     });
+
+    this.state = { ...this.state, status: "recording" };
+    this.emit("state", this.state);
+
+    // Audio capture in parallel. Best-effort: a failure here drops back to
+    // video-only without breaking the recording.
+    if (this.audioRequested) {
+      const r = await startAudioCapture({
+        systemAudio: req.captureSystemAudio,
+        mic: req.captureMic,
+      });
+      if (!r.ok) {
+        console.warn("[recorda] audio capture failed, continuing video-only:", r.error);
+        this.audioRequested = false;
+      }
+    }
 
     return this.state;
   }
@@ -206,16 +221,84 @@ class Recorder extends EventEmitter {
     if (!this.proc || this.state.status === "idle") return this.state;
     this.state = { ...this.state, status: "stopping" };
     this.emit("state", this.state);
-
-    // Send 'q' to stdin for clean MP4 finalization. SIGTERM doesn't trailer-write on Windows.
     try {
       this.proc.stdin?.write("q");
       this.proc.stdin?.end();
     } catch {
-      // fallback
       try { this.proc.kill("SIGINT"); } catch { /* ignore */ }
     }
     return this.state;
+  }
+
+  private async handleVideoClose(code: number | null) {
+    const wasStopping = this.state.status === "stopping";
+    this.proc = null;
+
+    // Always stop the audio renderer regardless of code so it cleans up tracks.
+    let audioFile: string | null = null;
+    if (this.audioRequested) {
+      audioFile = await stopAudioCapture();
+    }
+
+    if (code !== 0 && !wasStopping) {
+      this.state = {
+        ...this.state,
+        status: "error",
+        errorMessage: `ffmpeg exited with code ${code}\n\n${this.tailLog(20)}`,
+      };
+      this.emit("state", this.state);
+      this.cleanupTemp(audioFile);
+      this.emit("finalized", this.finalOutputPath, code);
+      return;
+    }
+
+    // Mux video + audio into the final container, or promote the video temp.
+    const wantMux = audioFile
+      && fs.existsSync(audioFile)
+      && fs.existsSync(this.videoTempPath)
+      && this.videoTempPath !== this.finalOutputPath;
+
+    if (wantMux) {
+      try {
+        await this.runMux(this.videoTempPath, audioFile!);
+      } catch (e) {
+        console.error("[recorda] mux failed, promoting video-only:", e);
+        try { fs.copyFileSync(this.videoTempPath, this.finalOutputPath); } catch { /* ignore */ }
+      }
+      this.cleanupTemp(audioFile);
+    } else if (this.videoTempPath !== this.finalOutputPath && fs.existsSync(this.videoTempPath)) {
+      // Audio missing or failed — promote the video temp to final.
+      try { fs.copyFileSync(this.videoTempPath, this.finalOutputPath); } catch { /* ignore */ }
+      this.cleanupTemp(null);
+    }
+
+    this.state = { ...this.state, status: "idle", outputPath: this.finalOutputPath };
+    this.emit("state", this.state);
+    this.emit("finalized", this.finalOutputPath, code);
+  }
+
+  private runMux(videoPath: string, audioPath: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const args = buildMuxArgs(videoPath, audioPath, this.finalOutputPath, this.container);
+      const ff = ffmpegPath();
+      const muxProc = spawn(ff, args, { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+      let stderr = "";
+      muxProc.stderr?.on("data", (b: Buffer) => { stderr += b.toString(); });
+      muxProc.on("error", reject);
+      muxProc.on("close", (code) => {
+        if (code === 0) resolve();
+        else reject(new Error(`mux exited ${code}: ${stderr.slice(-500)}`));
+      });
+    });
+  }
+
+  private cleanupTemp(audioFile: string | null) {
+    if (this.videoTempPath && this.videoTempPath !== this.finalOutputPath) {
+      try { fs.unlinkSync(this.videoTempPath); } catch { /* ignore */ }
+    }
+    if (audioFile) {
+      try { fs.unlinkSync(audioFile); } catch { /* ignore */ }
+    }
   }
 
   private parseProgress(text: string) {

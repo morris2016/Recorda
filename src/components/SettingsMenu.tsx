@@ -30,7 +30,7 @@ export function SettingsMenu() {
     encoders, encoderId, setEncoder,
     fps, setFps, quality, setQuality, container, setContainer,
     captureSystemAudio, setCaptureSystemAudio,
-    captureMic, setCaptureMic, audioDevices, micDevice, setMicDevice,
+    captureMic, setCaptureMic,
     recState, mode,
   } = useStore();
 
@@ -135,7 +135,7 @@ export function SettingsMenu() {
                 onClick={() => setCaptureSystemAudio(!captureSystemAudio)}
                 icon={<Volume2 size={13} />}
                 label="System audio"
-                hint="loopback (default playback device)"
+                hint="WASAPI loopback (no drivers needed)"
               />
               <SmallToggle
                 active={captureMic}
@@ -143,20 +143,11 @@ export function SettingsMenu() {
                 onClick={() => setCaptureMic(!captureMic)}
                 icon={<Mic size={13} />}
                 label="Microphone"
+                hint="default input device"
               />
-              {captureMic && (
-                <select
-                  className="field w-full mt-1 text-xs"
-                  disabled={disabled}
-                  value={micDevice ?? ""}
-                  onChange={(e) => setMicDevice(e.target.value || null)}
-                >
-                  <option value="">- pick a microphone -</option>
-                  {audioDevices.map((d) => (
-                    <option key={d.name} value={d.name}>{d.name}</option>
-                  ))}
-                </select>
-              )}
+              <div className="text-[10px] text-text-faint mt-1">
+                Encoded as Opus, muxed onto the video on stop.
+              </div>
             </Section>
           </div>
         </div>

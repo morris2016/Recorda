@@ -16,6 +16,7 @@ export default defineConfig({
         main: path.resolve(__dirname, "index.html"),
         region: path.resolve(__dirname, "region.html"),
         countdown: path.resolve(__dirname, "countdown.html"),
+        audio: path.resolve(__dirname, "audio.html"),
       },
     },
   },

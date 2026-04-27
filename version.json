@@ -1,5 +1,5 @@
 {
-  "version": "0.1.4",
-  "url": "https://github.com/morris2016/Recorda/releases/download/v0.1.4/recorda-Setup-0.1.4.exe",
-  "notes": "Streamlined recording: 3/5/10 s countdown, cleaner hide before capture (no recorda chrome in frames), and a dropdown Settings menu for FPS/quality/format/encoder/audio."
+  "version": "0.1.5",
+  "url": "https://github.com/morris2016/Recorda/releases/download/v0.1.5/recorda-Setup-0.1.5.exe",
+  "notes": "Reliable system audio: WASAPI loopback via Chromium (no Stereo Mix / virtual cable needed). Mic + system audio mix into a single track, encoded as Opus and muxed onto the video on stop."
 }

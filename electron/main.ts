@@ -9,12 +9,15 @@ import {
   Menu,
   nativeImage,
   screen,
+  session,
+  desktopCapturer,
 } from "electron";
 import path from "node:path";
 import fs from "node:fs";
 import { isDev, rendererURL, rendererFile, preloadPath, countdownPreloadPath, appIconPath } from "./paths";
 import { listAudioDevices, listDisplays, detectEncoders } from "./devices";
 import { recorder, RecordRequest, defaultOutputDir } from "./recorder";
+import { setupAudioCaptureIpc } from "./audio-capture";
 import { updater, getCurrentVersion, openDownloadInBrowser } from "./updater";
 
 let mainWin: BrowserWindow | null = null;
@@ -286,6 +289,18 @@ async function openRegionWindow(): Promise<{ x: number; y: number; width: number
 }
 
 app.whenReady().then(() => {
+  // Provide system audio loopback to the hidden audio renderer when it calls
+  // navigator.mediaDevices.getDisplayMedia({ audio: true, video: true }).
+  // No driver / Stereo Mix required.
+  session.defaultSession.setDisplayMediaRequestHandler((_request, callback) => {
+    desktopCapturer.getSources({ types: ["screen"] }).then((sources) => {
+      callback({ video: sources[0], audio: "loopback" });
+    }).catch(() => {
+      callback({});
+    });
+  }, { useSystemPicker: false });
+
+  setupAudioCaptureIpc();
   createMainWindow();
   createTray();
   registerHotkeys();
