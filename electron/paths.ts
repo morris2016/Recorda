@@ -43,19 +43,23 @@ export function ffprobePath(): string {
   return "ffprobe";
 }
 
-export function rendererURL(htmlFile: "index.html" | "region.html"): string {
+export function rendererURL(htmlFile: "index.html" | "region.html" | "countdown.html"): string {
   // Used only in dev; in prod we go through loadFile with rendererFile().
   const base = "http://localhost:5173";
   return htmlFile === "index.html" ? base : `${base}/${htmlFile}`;
 }
 
-export function rendererFile(htmlFile: "index.html" | "region.html"): string {
+export function rendererFile(htmlFile: "index.html" | "region.html" | "countdown.html"): string {
   // dist-electron/main.js -> ../dist/<htmlFile>. Works inside app.asar too.
   return path.join(__dirname, "..", "dist", htmlFile);
 }
 
 export function preloadPath(): string {
   return path.join(__dirname, "preload.js");
+}
+
+export function countdownPreloadPath(): string {
+  return path.join(__dirname, "preload-countdown.js");
 }
 
 export function appIconPath(): string {

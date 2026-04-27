@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { TitleBar } from "./components/TitleBar";
-import { SourcePanel } from "./components/SourcePanel";
+import { ModeTabs } from "./components/ModeTabs";
+import { SettingsMenu } from "./components/SettingsMenu";
 import { RecordPanel } from "./components/RecordPanel";
 import { RecentList } from "./components/RecentList";
 import { UpdateBanner } from "./components/UpdateBanner";
@@ -9,7 +10,7 @@ import { useStore } from "./store";
 export default function App() {
   const {
     setDisplays, setAudioDevices, setEncoders, setRecents, setRecState,
-    setSelectedDisplay, setEncoder, setOutputDir, displays,
+    setSelectedDisplay, setEncoder, setOutputDir,
   } = useStore();
 
   useEffect(() => {
@@ -65,6 +66,7 @@ export default function App() {
             captureMic: s.captureMic,
             micDevice: s.micDevice ?? undefined,
             outputDir: s.outputDir,
+            countdownSeconds: s.countdownSeconds,
           });
         }
       }
@@ -76,29 +78,26 @@ export default function App() {
     <div className="flex flex-col h-full">
       <TitleBar />
       <UpdateBanner />
-      <div className="flex-1 overflow-hidden flex">
-        <main className="flex-1 overflow-y-auto p-6">
-          <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-[1fr,360px] gap-6">
-            <div>
-              <h1 className="text-lg font-semibold mb-1">Capture</h1>
-              <p className="text-xs text-text-faint mb-5">
-                Configure what you want to record. {displays.length} {displays.length === 1 ? "display" : "displays"} detected.
-              </p>
-              <SourcePanel />
-            </div>
-            <div className="space-y-5">
-              <div>
-                <h2 className="text-lg font-semibold mb-3">Record</h2>
-                <RecordPanel />
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-text-dim mb-2">Recent</h3>
-                <RecentList />
-              </div>
-            </div>
+      <main className="flex-1 overflow-y-auto">
+        <div className="max-w-xl mx-auto px-5 py-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <ModeTabs />
+            <SettingsMenu />
           </div>
-        </main>
-      </div>
+
+          <RecordPanel />
+
+          <details className="card group">
+            <summary className="flex items-center justify-between px-3 py-2 cursor-pointer select-none list-none">
+              <span className="text-xs font-medium text-text-dim">Recent recordings</span>
+              <span className="text-text-faint text-xs group-open:rotate-180 transition-transform">▾</span>
+            </summary>
+            <div className="border-t border-border-soft">
+              <RecentList />
+            </div>
+          </details>
+        </div>
+      </main>
     </div>
   );
 }

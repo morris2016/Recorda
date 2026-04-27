@@ -6,13 +6,13 @@ export function RecentList() {
   const { recents } = useStore();
   if (recents.length === 0) {
     return (
-      <div className="card p-4 text-center text-xs text-text-faint">
+      <div className="px-4 py-3 text-center text-xs text-text-faint">
         Your past recordings will appear here.
       </div>
     );
   }
   return (
-    <div className="card divide-y divide-border-soft overflow-hidden">
+    <div className="divide-y divide-border-soft">
       {recents.map((r) => (
         <div key={r.path} className="flex items-center gap-3 px-3 py-2.5 hover:bg-bg-panel2 transition-colors">
           <Film size={14} className="text-text-faint shrink-0" />

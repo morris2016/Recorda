@@ -1,4 +1,4 @@
-import { Circle, Square, FolderOpen, FolderInput } from "lucide-react";
+import { Circle, Square, FolderOpen, FolderInput, MousePointer2, Timer } from "lucide-react";
 import { useStore } from "../store";
 import { useEffect, useState } from "react";
 import { formatDuration } from "../lib/format";
@@ -8,8 +8,10 @@ export function RecordPanel() {
   const {
     recState, displays, selectedDisplayId, mode, region,
     fps, encoderId, quality, container,
-    captureCursor, captureSystemAudio, captureMic, micDevice,
+    captureCursor, setCaptureCursor,
+    captureSystemAudio, captureMic, micDevice,
     outputDir, setOutputDir,
+    countdownSeconds, setCountdownSeconds,
   } = useStore();
 
   const isRecording = recState.status === "recording";
@@ -42,6 +44,7 @@ export function RecordPanel() {
       captureMic,
       micDevice: micDevice ?? undefined,
       outputDir,
+      countdownSeconds,
     });
   };
 
@@ -53,60 +56,91 @@ export function RecordPanel() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="card p-5 flex flex-col items-center justify-center min-h-[200px] gap-4">
-        <div
-          className={cn(
-            "text-[44px] font-mono tabular-nums tracking-tight font-semibold",
-            isRecording ? "text-rec" : "text-text-dim"
-          )}
-        >
-          {formatDuration(elapsed)}
-        </div>
-
-        <div className="flex items-center gap-2">
+    <div className="space-y-2.5">
+      <div className="card px-5 py-4 flex flex-col items-center gap-3">
+        <div className="flex items-baseline gap-3">
+          <div
+            className={cn(
+              "text-[36px] font-mono tabular-nums tracking-tight font-semibold leading-none",
+              isRecording ? "text-rec" : "text-text-dim"
+            )}
+          >
+            {formatDuration(elapsed)}
+          </div>
           {isRecording && (
-            <span className="flex items-center gap-1.5 text-xs text-rec">
-              <span className="h-2 w-2 rounded-full bg-rec animate-pulse-rec" />
-              <span className="font-medium uppercase tracking-wider">Recording</span>
+            <span className="flex items-center gap-1.5 text-[10px] text-rec">
+              <span className="h-1.5 w-1.5 rounded-full bg-rec animate-pulse-rec" />
+              <span className="font-medium uppercase tracking-wider">Rec</span>
             </span>
           )}
-          {isStarting && <span className="text-xs text-text-dim">Starting...</span>}
-          {isStopping && <span className="text-xs text-text-dim">Finalizing file...</span>}
-          {recState.status === "idle" && <span className="text-xs text-text-faint">Ready</span>}
-          {recState.status === "error" && <span className="text-xs text-rec">Error</span>}
+          {isStarting && <span className="text-[11px] text-text-dim">Starting...</span>}
+          {isStopping && <span className="text-[11px] text-text-dim">Finalizing...</span>}
+          {recState.status === "idle" && <span className="text-[11px] text-text-faint">Ready</span>}
+          {recState.status === "error" && <span className="text-[11px] text-rec">Error</span>}
         </div>
+
+        {!isRecording && (
+          <div className="flex items-center gap-2 text-xs">
+            <button
+              onClick={() => setCaptureCursor(!captureCursor)}
+              disabled={isStarting}
+              className={cn(
+                "btn py-1.5",
+                captureCursor ? "btn-primary" : "btn-secondary"
+              )}
+              title={captureCursor ? "Cursor will be recorded" : "Cursor will NOT be recorded"}
+            >
+              <MousePointer2 size={13} />
+              {captureCursor ? "Cursor: on" : "Cursor: off"}
+            </button>
+
+            <div className="flex items-center gap-1.5 bg-bg-panel border border-border rounded-lg px-2.5 py-1.5">
+              <Timer size={13} className="text-text-faint" />
+              <span className="text-text-faint">Countdown</span>
+              <select
+                className="bg-transparent text-text font-medium outline-none ml-1 cursor-pointer"
+                value={countdownSeconds}
+                onChange={(e) => setCountdownSeconds(parseInt(e.target.value, 10))}
+                disabled={isStarting}
+              >
+                <option value={0}>Off</option>
+                <option value={3}>3 s</option>
+                <option value={5}>5 s</option>
+                <option value={10}>10 s</option>
+              </select>
+            </div>
+          </div>
+        )}
 
         {isRecording ? (
           <button
             onClick={stop}
-            className="btn btn-rec px-8 py-3 text-base shadow-rec"
+            className="btn btn-rec px-7 py-2.5 text-base shadow-rec"
           >
-            <Square size={18} /> Stop  (Ctrl+R)
+            <Square size={16} /> Stop  (Ctrl+R)
           </button>
         ) : (
           <button
             onClick={start}
             disabled={!canRecord || isStarting}
             className={cn(
-              "btn px-8 py-3 text-base",
+              "btn px-7 py-2.5 text-base",
               canRecord ? "btn-rec shadow-rec" : "btn-secondary"
             )}
           >
-            <Circle size={18} fill="currentColor" /> Record  (Ctrl+R)
+            <Circle size={16} fill="currentColor" /> Record  (Ctrl+R)
           </button>
         )}
-
       </div>
 
-      <div>
-        <div className="label mb-2">Save to</div>
-        <div className="flex items-center gap-2">
-          <div className="field flex-1 truncate text-xs font-mono text-text-dim">{outputDir || "..."}</div>
-          <button className="btn btn-secondary" onClick={browseFolder} disabled={isRecording}>
-            <FolderInput size={14} /> Browse
-          </button>
+      <div className="flex items-center gap-2">
+        <div className="field flex-1 truncate text-[11px] font-mono text-text-dim flex items-center gap-2">
+          <FolderInput size={12} className="text-text-faint shrink-0" />
+          <span className="truncate">{outputDir || "..."}</span>
         </div>
+        <button className="btn btn-secondary text-xs py-1.5" onClick={browseFolder} disabled={isRecording}>
+          Browse
+        </button>
       </div>
 
       {recState.status === "error" && recState.errorMessage && (

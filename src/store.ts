@@ -31,6 +31,7 @@ interface State {
   captureMic: boolean;
   micDevice: string | null;
   outputDir: string;
+  countdownSeconds: number;
 
   // runtime
   recState: RecordingState;
@@ -49,6 +50,7 @@ interface State {
   setCaptureMic: (b: boolean) => void;
   setMicDevice: (n: string | null) => void;
   setOutputDir: (s: string) => void;
+  setCountdownSeconds: (n: number) => void;
 
   setDisplays: (d: DisplayInfo[]) => void;
   setAudioDevices: (d: AudioDevice[]) => void;
@@ -76,6 +78,7 @@ export const useStore = create<State>((set) => ({
   captureMic: false,
   micDevice: null,
   outputDir: "",
+  countdownSeconds: 3,
 
   recState: { status: "idle" },
   elapsedMs: 0,
@@ -92,6 +95,7 @@ export const useStore = create<State>((set) => ({
   setCaptureMic: (b) => set({ captureMic: b }),
   setMicDevice: (n) => set({ micDevice: n }),
   setOutputDir: (s) => set({ outputDir: s }),
+  setCountdownSeconds: (n) => set({ countdownSeconds: n }),
 
   setDisplays: (d) => set({ displays: d }),
   setAudioDevices: (d) => set({ audioDevices: d }),

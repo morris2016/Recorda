@@ -45,6 +45,7 @@ export interface RecordRequest {
   captureMic: boolean;
   micDevice?: string;
   outputDir: string;
+  countdownSeconds?: number;
 }
 
 export interface RecordingState {
