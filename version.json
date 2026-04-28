@@ -1,5 +1,5 @@
 {
-  "version": "0.1.9",
-  "url": "https://github.com/morris2016/Recorda/releases/download/v0.1.9/recorda-Setup-0.1.9.exe",
-  "notes": "Single-instance lock + unified countdown/Stop widget. Second launches focus the existing window instead of spawning a duplicate; the floating widget runs the 3/5/10s countdown and morphs into the Stop pill when ffmpeg starts."
+  "version": "0.1.10",
+  "url": "https://github.com/morris2016/Recorda/releases/download/v0.1.10/recorda-Setup-0.1.10.exe",
+  "notes": "Truly silent updates: no more 'Install now' prompt after auto-download (installer runs on quit). The manual Install button now spawns NSIS /S detached so it actually works."
 }

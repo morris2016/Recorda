@@ -157,22 +157,29 @@ export class Updater extends EventEmitter {
     }
   }
 
-  // Spawn the installer detached and quit recorda.
+  // Spawn the silent NSIS installer detached, then quit recorda.
   async installAndQuit(installerPath?: string) {
     const exe = installerPath ?? this.cachedInstaller;
     if (!exe || !fs.existsSync(exe)) throw new Error("installer not downloaded");
     this.setState({ phase: "installing", installerPath: exe });
-    // Brief delay so the dialog button can release before we exit.
-    setTimeout(async () => {
+    // Tiny delay so the click animation can release before we exit.
+    setTimeout(() => {
       try {
-        await shell.openPath(exe);
+        const child = spawn(exe, ["/S"], {
+          detached: true,
+          stdio: "ignore",
+          windowsHide: true,
+        });
+        child.unref();
       } catch (e) {
         this.setState({ phase: "error", errorMessage: (e as Error).message });
         return;
       }
-      // Quit so the installer can replace the running .exe.
+      // Clear the cache so the will-quit hook doesn't fire a second installer.
+      this.cachedInstaller = null;
+      this.cachedFor = null;
       app.quit();
-    }, 300);
+    }, 250);
   }
 
   // Background flow: check + download (no UI prompt). The installer is held

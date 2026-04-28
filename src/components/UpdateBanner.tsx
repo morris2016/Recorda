@@ -18,12 +18,16 @@ export function UpdateBanner() {
   }, []);
 
   if (!state) return null;
-  // Hide unless we're in a user-relevant phase
+  // Show ONLY for cases the user can act on. Successful auto-download +
+  // install-on-quit happens silently — no banner spam.
+  //   - "downloading": show progress so the user knows something's happening
+  //   - "available": only if we can't auto-download (URL isn't a direct .exe)
+  //   - "error": surface the failure
+  // "ready" and "installing" are hidden — installer fires on next quit.
+  const cantAutoDownload = state.phase === "available" && state.url && !/\.exe(\?|$)/i.test(state.url);
   const visible =
-    state.phase === "available" ||
     state.phase === "downloading" ||
-    state.phase === "ready" ||
-    state.phase === "installing" ||
+    cantAutoDownload ||
     state.phase === "error";
   if (!visible || dismissed) return null;
 
