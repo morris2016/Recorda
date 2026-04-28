@@ -1,5 +1,5 @@
 {
-  "version": "0.1.7",
-  "url": "https://github.com/morris2016/Recorda/releases/download/v0.1.7/recorda-Setup-0.1.7.exe",
-  "notes": "Robust hardware-encoder detection (probes each encoder, never offers NVENC on machines without nvcuda.dll) + Chrome-style silent updates: download in background, install on quit."
+  "version": "0.1.8",
+  "url": "https://github.com/morris2016/Recorda/releases/download/v0.1.8/recorda-Setup-0.1.8.exe",
+  "notes": "Fix odd-dimension regions failing libx264 (height not divisible by 2). Capture rounds width/height to even pixels and applies a defensive crop filter."
 }

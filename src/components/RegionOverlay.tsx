@@ -67,11 +67,14 @@ export function RegionOverlay() {
   const confirm = () => {
     if (!geom || !rect || rect.width < 8 || rect.height < 8) return;
     const sf = geom.scaleFactor || 1;
+    // H.264 requires even dimensions — round both down to the nearest even
+    // pixel so the captured region matches what the encoder accepts.
+    const evenDown = (n: number) => Math.max(2, Math.floor(n / 2) * 2);
     const out = {
       x: Math.round(geom.x + rect.x * sf),
       y: Math.round(geom.y + rect.y * sf),
-      width: Math.round(rect.width * sf),
-      height: Math.round(rect.height * sf),
+      width: evenDown(Math.round(rect.width * sf)),
+      height: evenDown(Math.round(rect.height * sf)),
     };
     window.recorda.regionConfirm(out);
   };

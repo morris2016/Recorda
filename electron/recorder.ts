@@ -52,6 +52,11 @@ function timestampName(): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}-${p(d.getMinutes())}-${p(d.getSeconds())}`;
 }
 
+// H.264 / HEVC require even width and height; libx264 will refuse odd dims
+// outright. Round down to the nearest even pixel so any region or display
+// with odd pixel counts captures cleanly.
+function evenDown(n: number): number { return Math.max(2, Math.floor(n / 2) * 2); }
+
 function buildArgs(req: RecordRequest, outputPath: string): string[] {
   const args: string[] = ["-hide_banner", "-loglevel", "info", "-y"];
 
@@ -70,17 +75,22 @@ function buildArgs(req: RecordRequest, outputPath: string): string[] {
     args.push(
       "-offset_x", String(r.x),
       "-offset_y", String(r.y),
-      "-video_size", `${r.width}x${r.height}`,
+      "-video_size", `${evenDown(r.width)}x${evenDown(r.height)}`,
       "-i", "desktop",
     );
   } else {
     args.push(
       "-offset_x", String(req.display.x),
       "-offset_y", String(req.display.y),
-      "-video_size", `${req.display.width}x${req.display.height}`,
+      "-video_size", `${evenDown(req.display.width)}x${evenDown(req.display.height)}`,
       "-i", "desktop",
     );
   }
+
+  // Belt-and-braces: even if a future input source slips an odd dimension
+  // through, this filter trims to even at the encoder boundary so x264 etc.
+  // never sees an odd height.
+  args.push("-vf", "crop=trunc(iw/2)*2:trunc(ih/2)*2");
 
   // ---- video encoder ----
   const enc = req.encoder;
