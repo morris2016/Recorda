@@ -1,5 +1,5 @@
 {
-  "version": "0.1.8",
-  "url": "https://github.com/morris2016/Recorda/releases/download/v0.1.8/recorda-Setup-0.1.8.exe",
-  "notes": "Fix odd-dimension regions failing libx264 (height not divisible by 2). Capture rounds width/height to even pixels and applies a defensive crop filter."
+  "version": "0.1.9",
+  "url": "https://github.com/morris2016/Recorda/releases/download/v0.1.9/recorda-Setup-0.1.9.exe",
+  "notes": "Single-instance lock + unified countdown/Stop widget. Second launches focus the existing window instead of spawning a duplicate; the floating widget runs the 3/5/10s countdown and morphs into the Stop pill when ffmpeg starts."
 }

@@ -1,9 +1,15 @@
 import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("recordaWidget", {
-  onStartedAt: (cb: (ms: number) => void) => {
-    ipcRenderer.on("widget:started-at", (_e, ms: number) => cb(ms));
-    ipcRenderer.send("widget:request-started-at");
+  ready: () => ipcRenderer.send("widget:ready"),
+  onPhase: (
+    cb: (
+      payload:
+        | { kind: "countdown"; n: number }
+        | { kind: "recording"; startedAt: number }
+    ) => void,
+  ) => {
+    ipcRenderer.on("widget:phase", (_e, payload) => cb(payload));
   },
   stop: () => ipcRenderer.send("widget:stop"),
 });

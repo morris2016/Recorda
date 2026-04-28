@@ -20,6 +20,14 @@ import { recorder, RecordRequest, defaultOutputDir } from "./recorder";
 import { setupAudioCaptureIpc } from "./audio-capture";
 import { updater, getCurrentVersion, openDownloadInBrowser } from "./updater";
 
+// Single-instance lock — second launches just focus the existing window
+// instead of spawning a duplicate. Bail out IMMEDIATELY if we lost the
+// race so no tray icon, no window, no IPC handlers get registered.
+const gotInstanceLock = app.requestSingleInstanceLock();
+if (!gotInstanceLock) {
+  app.exit(0);
+}
+
 let mainWin: BrowserWindow | null = null;
 let regionWin: BrowserWindow | null = null;
 let countdownWin: BrowserWindow | null = null;
@@ -28,6 +36,7 @@ let tray: Tray | null = null;
 let regionResolver: ((rect: { x: number; y: number; width: number; height: number } | null) => void) | null = null;
 let mainHiddenForRec = false;
 let recStartedAt = 0;
+let widgetReadyResolve: (() => void) | null = null;
 
 function createMainWindow() {
   mainWin = new BrowserWindow({
@@ -122,25 +131,33 @@ function setupIpc() {
   ipcMain.handle("devices:detect-encoders", () => detectEncoders());
 
   ipcMain.handle("rec:start", async (_e, req: RecordRequest) => {
-    // Get the recorda window completely out of view BEFORE ffmpeg starts.
-    // Windows fades windows out over ~200-400ms; if we don't kill that, the
-    // first frames include a translucent recorda. Trick: set opacity to 0
-    // synchronously (no animation), THEN hide, THEN wait for any leftover
-    // compositor flush. With a countdown the buffer is already long, but
-    // when countdown=0 we hold a deliberate ~600ms before spawning ffmpeg.
+    // Hide the recorda window first so the countdown widget never overlaps
+    // the disappearing main window.
     if (mainWin && mainWin.isVisible()) {
       mainHiddenForRec = true;
       try { mainWin.setOpacity(0); } catch { /* ignore */ }
       mainWin.hide();
     }
     const seconds = Math.max(0, Math.min(10, Math.floor(req.countdownSeconds ?? 0)));
-    // Always wait long enough for the hide to fully commit. With a countdown,
-    // 200ms is plenty (countdown adds seconds on top). Without, hold 600ms.
     await sleep(seconds > 0 ? 220 : 600);
+
+    // Open the unified widget upfront. It runs the countdown phase AND the
+    // recording phase in the same window — one floating element, no flicker
+    // between two separate windows.
+    openRecordingWidget(seconds > 0 ? { kind: "countdown", n: seconds } : null);
+    await widgetReady();
+
     if (seconds > 0) {
-      await runCountdown(seconds, req);
+      for (let n = seconds; n >= 1; n--) {
+        widgetWin?.webContents.send("widget:phase", { kind: "countdown", n });
+        await sleep(1000);
+      }
     }
-    return recorder.start(req);
+
+    recStartedAt = Date.now();
+    const result = await recorder.start(req);
+    widgetWin?.webContents.send("widget:phase", { kind: "recording", startedAt: recStartedAt });
+    return result;
   });
   ipcMain.handle("rec:stop", () => recorder.stop());
   ipcMain.handle("rec:state", () => recorder.getState());
@@ -224,12 +241,6 @@ function setupIpc() {
   recorder.on("state", (s) => {
     mainWin?.webContents.send("rec:state-change", s);
 
-    // Recording started → show the floating widget (excluded from capture).
-    if (s.status === "recording" && lastStatus !== "recording") {
-      recStartedAt = s.startedAt ?? Date.now();
-      openRecordingWidget();
-    }
-
     // Recording finished → close widget + restore main window.
     if (
       (s.status === "idle" || s.status === "error") &&
@@ -248,18 +259,36 @@ function setupIpc() {
   recorder.on("progress", (s) => mainWin?.webContents.send("rec:state-change", s));
 
   // Widget IPC
-  ipcMain.on("widget:request-started-at", (e) => {
-    e.sender.send("widget:started-at", recStartedAt);
+  ipcMain.on("widget:ready", () => {
+    if (widgetReadyResolve) {
+      const r = widgetReadyResolve;
+      widgetReadyResolve = null;
+      r();
+    }
   });
   ipcMain.on("widget:stop", () => {
     if (recorder.getState().status === "recording") recorder.stop();
   });
 }
 
-function openRecordingWidget() {
+type WidgetPhase = { kind: "countdown"; n: number } | { kind: "recording"; startedAt: number };
+
+function widgetReady(): Promise<void> {
+  return new Promise((resolve) => {
+    widgetReadyResolve = resolve;
+    setTimeout(() => {
+      if (widgetReadyResolve) {
+        widgetReadyResolve = null;
+        resolve();
+      }
+    }, 1500);
+  });
+}
+
+function openRecordingWidget(initialPhase: WidgetPhase | null) {
   closeRecordingWidget();
-  const w = 220;
-  const h = 44;
+  const w = 260;
+  const h = 48;
   const primary = screen.getPrimaryDisplay();
   // Bottom-right of the primary display, with a 24px margin.
   const x = primary.bounds.x + primary.bounds.width - w - 24;
@@ -295,6 +324,10 @@ function openRecordingWidget() {
     widgetWin?.showInactive();
     widgetWin?.setAlwaysOnTop(true, "screen-saver");
     widgetWin?.setVisibleOnAllWorkspaces(true);
+    if (initialPhase) widgetWin?.webContents.send("widget:phase", initialPhase);
+  });
+  widgetWin.webContents.once("did-finish-load", () => {
+    if (initialPhase) widgetWin?.webContents.send("widget:phase", initialPhase);
   });
   widgetWin.on("closed", () => { widgetWin = null; });
 }
@@ -400,6 +433,14 @@ app.whenReady().then(() => {
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
   });
+
+  app.on("second-instance", () => {
+    if (mainWin) {
+      if (mainWin.isMinimized()) mainWin.restore();
+      mainWin.show();
+      mainWin.focus();
+    }
+  });
 });
 
 app.on("window-all-closed", () => {
@@ -409,6 +450,9 @@ app.on("window-all-closed", () => {
 
 app.on("will-quit", () => {
   globalShortcut.unregisterAll();
+  // Destroy the tray immediately so the system tray doesn't leave a ghost
+  // icon behind after the process exits.
+  try { tray?.destroy(); tray = null; } catch { /* ignore */ }
   // Run the silent NSIS installer detached if an update was downloaded
   // during this session. NSIS replaces the .exe in the background while we
   // exit; user reopens recorda on the new version next launch.

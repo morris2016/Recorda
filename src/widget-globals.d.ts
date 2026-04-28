@@ -1,9 +1,14 @@
 export {};
 
+type WidgetPhase =
+  | { kind: "countdown"; n: number }
+  | { kind: "recording"; startedAt: number };
+
 declare global {
   interface Window {
     recordaWidget: {
-      onStartedAt: (cb: (ms: number) => void) => void;
+      ready: () => void;
+      onPhase: (cb: (p: WidgetPhase) => void) => void;
       stop: () => void;
     };
   }
