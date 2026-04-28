@@ -117,7 +117,7 @@ export function RecordPanel() {
             onClick={stop}
             className="btn btn-rec px-7 py-2.5 text-base shadow-rec"
           >
-            <Square size={16} /> Stop  (Ctrl+R)
+            <Square size={16} /> Stop  (Ctrl+R / F9)
           </button>
         ) : (
           <button
@@ -128,7 +128,7 @@ export function RecordPanel() {
               canRecord ? "btn-rec shadow-rec" : "btn-secondary"
             )}
           >
-            <Circle size={16} fill="currentColor" /> Record  (Ctrl+R)
+            <Circle size={16} fill="currentColor" /> Record  (Ctrl+R / F9)
           </button>
         )}
       </div>

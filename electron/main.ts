@@ -14,7 +14,7 @@ import {
 } from "electron";
 import path from "node:path";
 import fs from "node:fs";
-import { isDev, rendererURL, rendererFile, preloadPath, countdownPreloadPath, appIconPath } from "./paths";
+import { isDev, rendererURL, rendererFile, preloadPath, countdownPreloadPath, widgetPreloadPath, appIconPath } from "./paths";
 import { listAudioDevices, listDisplays, detectEncoders } from "./devices";
 import { recorder, RecordRequest, defaultOutputDir } from "./recorder";
 import { setupAudioCaptureIpc } from "./audio-capture";
@@ -23,9 +23,11 @@ import { updater, getCurrentVersion, openDownloadInBrowser } from "./updater";
 let mainWin: BrowserWindow | null = null;
 let regionWin: BrowserWindow | null = null;
 let countdownWin: BrowserWindow | null = null;
+let widgetWin: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let regionResolver: ((rect: { x: number; y: number; width: number; height: number } | null) => void) | null = null;
 let mainHiddenForRec = false;
+let recStartedAt = 0;
 
 function createMainWindow() {
   mainWin = new BrowserWindow({
@@ -78,8 +80,8 @@ function createTray() {
       { label: "Show recorda", click: () => { mainWin?.show(); mainWin?.focus(); } },
       { type: "separator" },
       isRecording
-        ? { label: "Stop recording  (Ctrl+R)", click: () => recorder.stop() }
-        : { label: "Start recording  (Ctrl+R)", click: () => mainWin?.webContents.send("hotkey", "start"), enabled: !!mainWin },
+        ? { label: "Stop recording  (Ctrl+R / F9)", click: () => recorder.stop() }
+        : { label: "Start recording  (Ctrl+R / F9)", click: () => mainWin?.webContents.send("hotkey", "start"), enabled: !!mainWin },
       { type: "separator" },
       { label: "Quit", click: () => { tray?.destroy(); app.quit(); } },
     ]);
@@ -90,15 +92,28 @@ function createTray() {
   recorder.on("state", refreshMenu);
 }
 
-export const TOGGLE_HOTKEY = "CommandOrControl+R";
+export const TOGGLE_HOTKEYS = ["CommandOrControl+R", "F9", "CommandOrControl+Shift+R"];
 
 function registerHotkeys() {
-  const ok = globalShortcut.register(TOGGLE_HOTKEY, () => {
+  const handler = () => {
     const s = recorder.getState();
     if (s.status === "recording") recorder.stop();
     else mainWin?.webContents.send("hotkey", "start");
-  });
-  if (!ok) console.warn(`[recorda] failed to register global hotkey ${TOGGLE_HOTKEY} - already in use?`);
+  };
+  const failed: string[] = [];
+  for (const accel of TOGGLE_HOTKEYS) {
+    let ok = false;
+    try { ok = globalShortcut.register(accel, handler); } catch { ok = false; }
+    if (!ok) failed.push(accel);
+  }
+  // If at least one of the variants registered, we still have a hotkey path —
+  // we silently ignore the others. If ALL failed, warn loudly so the user knows
+  // they must use the floating widget or tray to stop.
+  if (failed.length === TOGGLE_HOTKEYS.length) {
+    console.warn(`[recorda] all global hotkeys failed: ${failed.join(", ")}`);
+  } else {
+    console.log(`[recorda] hotkeys registered (${TOGGLE_HOTKEYS.filter((h) => !failed.includes(h)).join(", ")})`);
+  }
 }
 
 function setupIpc() {
@@ -208,13 +223,20 @@ function setupIpc() {
   let lastStatus: string | undefined;
   recorder.on("state", (s) => {
     mainWin?.webContents.send("rec:state-change", s);
-    // Recording finished (idle or error) → restore the window if we hid it.
+
+    // Recording started → show the floating widget (excluded from capture).
+    if (s.status === "recording" && lastStatus !== "recording") {
+      recStartedAt = s.startedAt ?? Date.now();
+      openRecordingWidget();
+    }
+
+    // Recording finished → close widget + restore main window.
     if (
       (s.status === "idle" || s.status === "error") &&
       (lastStatus === "recording" || lastStatus === "stopping" || lastStatus === "starting")
     ) {
+      closeRecordingWidget();
       if (mainHiddenForRec && mainWin) {
-        // Restore opacity BEFORE showing so the window doesn't fade in invisible.
         try { mainWin.setOpacity(1); } catch { /* ignore */ }
         mainWin.show();
         mainWin.focus();
@@ -224,6 +246,64 @@ function setupIpc() {
     lastStatus = s.status;
   });
   recorder.on("progress", (s) => mainWin?.webContents.send("rec:state-change", s));
+
+  // Widget IPC
+  ipcMain.on("widget:request-started-at", (e) => {
+    e.sender.send("widget:started-at", recStartedAt);
+  });
+  ipcMain.on("widget:stop", () => {
+    if (recorder.getState().status === "recording") recorder.stop();
+  });
+}
+
+function openRecordingWidget() {
+  closeRecordingWidget();
+  const w = 220;
+  const h = 44;
+  const primary = screen.getPrimaryDisplay();
+  // Bottom-right of the primary display, with a 24px margin.
+  const x = primary.bounds.x + primary.bounds.width - w - 24;
+  const y = primary.bounds.y + primary.bounds.height - h - 60;
+
+  widgetWin = new BrowserWindow({
+    x, y, width: w, height: h,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    fullscreenable: false,
+    resizable: false,
+    skipTaskbar: true,
+    hasShadow: false,
+    show: false,
+    focusable: true,
+    backgroundColor: "#00000000",
+    webPreferences: {
+      preload: widgetPreloadPath(),
+      contextIsolation: true,
+      sandbox: false,
+    },
+  });
+
+  // Critical: exclude this window from screen capture so the gdigrab feed
+  // never sees the recording widget. Uses Windows' WDA_EXCLUDEFROMCAPTURE.
+  try { widgetWin.setContentProtection(true); } catch { /* ignore */ }
+
+  if (isDev()) widgetWin.loadURL(rendererURL("widget.html"));
+  else widgetWin.loadFile(rendererFile("widget.html"));
+
+  widgetWin.once("ready-to-show", () => {
+    widgetWin?.showInactive();
+    widgetWin?.setAlwaysOnTop(true, "screen-saver");
+    widgetWin?.setVisibleOnAllWorkspaces(true);
+  });
+  widgetWin.on("closed", () => { widgetWin = null; });
+}
+
+function closeRecordingWidget() {
+  if (widgetWin) {
+    try { widgetWin.close(); } catch { /* ignore */ }
+    widgetWin = null;
+  }
 }
 
 async function openRegionWindow(): Promise<{ x: number; y: number; width: number; height: number } | null> {

@@ -43,13 +43,13 @@ export function ffprobePath(): string {
   return "ffprobe";
 }
 
-export function rendererURL(htmlFile: "index.html" | "region.html" | "countdown.html" | "audio.html"): string {
+export function rendererURL(htmlFile: "index.html" | "region.html" | "countdown.html" | "audio.html" | "widget.html"): string {
   // Used only in dev; in prod we go through loadFile with rendererFile().
   const base = "http://localhost:5173";
   return htmlFile === "index.html" ? base : `${base}/${htmlFile}`;
 }
 
-export function rendererFile(htmlFile: "index.html" | "region.html" | "countdown.html" | "audio.html"): string {
+export function rendererFile(htmlFile: "index.html" | "region.html" | "countdown.html" | "audio.html" | "widget.html"): string {
   // dist-electron/main.js -> ../dist/<htmlFile>. Works inside app.asar too.
   return path.join(__dirname, "..", "dist", htmlFile);
 }
@@ -60,6 +60,10 @@ export function preloadPath(): string {
 
 export function countdownPreloadPath(): string {
   return path.join(__dirname, "preload-countdown.js");
+}
+
+export function widgetPreloadPath(): string {
+  return path.join(__dirname, "preload-widget.js");
 }
 
 export function appIconPath(): string {

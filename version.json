@@ -1,5 +1,5 @@
 {
-  "version": "0.1.5",
-  "url": "https://github.com/morris2016/Recorda/releases/download/v0.1.5/recorda-Setup-0.1.5.exe",
-  "notes": "Reliable system audio: WASAPI loopback via Chromium (no Stereo Mix / virtual cable needed). Mic + system audio mix into a single track, encoded as Opus and muxed onto the video on stop."
+  "version": "0.1.6",
+  "url": "https://github.com/morris2016/Recorda/releases/download/v0.1.6/recorda-Setup-0.1.6.exe",
+  "notes": "Floating Stop widget that's invisible to the recording (WDA_EXCLUDEFROMCAPTURE). Always-on-top timer + Stop button so you never need a hotkey. F9 added as fallback for Ctrl+R."
 }
