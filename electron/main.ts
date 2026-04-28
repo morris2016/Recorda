@@ -386,22 +386,15 @@ app.whenReady().then(() => {
   registerHotkeys();
   setupIpc();
 
-  // Background update check 5 s after launch — runs in main process, so it
-  // works even if the renderer fails to load. If a newer version is found,
-  // we offer a native dialog (renderer-independent) to download + install.
+  // Background update flow: check + download silently. The installer is then
+  // held and runs silently (NSIS /S) on app quit, replacing the binary in
+  // the background. The renderer banner shows progress + a "Install now"
+  // button for impatient users.
   setTimeout(async () => {
-    try {
-      const info = await updater.check();
-      if (info.available) {
-        await updater.promptInstall(mainWin);
-      }
-    } catch {
-      // silent — best-effort
-    }
+    try { await updater.backgroundUpdate(); } catch { /* best-effort */ }
   }, 5_000);
-  // Re-check every 6 hours.
   setInterval(async () => {
-    try { await updater.check(); } catch { /* ignore */ }
+    try { await updater.backgroundUpdate(); } catch { /* ignore */ }
   }, 6 * 60 * 60 * 1000);
 
   app.on("activate", () => {
@@ -416,6 +409,14 @@ app.on("window-all-closed", () => {
 
 app.on("will-quit", () => {
   globalShortcut.unregisterAll();
+  // Run the silent NSIS installer detached if an update was downloaded
+  // during this session. NSIS replaces the .exe in the background while we
+  // exit; user reopens recorda on the new version next launch.
+  try {
+    if (updater.hasPendingInstall()) {
+      updater.installPendingSilent();
+    }
+  } catch { /* ignore */ }
 });
 
 // ---------------------------------------------------------------------------

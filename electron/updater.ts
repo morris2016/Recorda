@@ -2,6 +2,7 @@ import https from "node:https";
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
+import { spawn } from "node:child_process";
 import { app, dialog, shell, BrowserWindow } from "electron";
 import { EventEmitter } from "node:events";
 
@@ -172,6 +173,48 @@ export class Updater extends EventEmitter {
       // Quit so the installer can replace the running .exe.
       app.quit();
     }, 300);
+  }
+
+  // Background flow: check + download (no UI prompt). The installer is held
+  // and run silently on app quit.
+  async backgroundUpdate(): Promise<void> {
+    const info = await this.check();
+    if (!info.available || !info.url) return;
+    if (!/\.exe(\?|$)/i.test(info.url)) return; // can't auto-install a page URL
+    try {
+      await this.download(info.url, info.latest);
+      // state becomes "ready"; cachedInstaller is set; banner shows "ready"
+    } catch (e) {
+      // best-effort; user can still trigger manual install via banner
+      this.setState({
+        phase: "error",
+        errorMessage: (e as Error).message,
+        latest: info.latest,
+        url: info.url,
+      });
+    }
+  }
+
+  // Detached silent install. Returns true if an installer was spawned.
+  // The installer (NSIS /S) replaces the .exe in the background after we quit.
+  installPendingSilent(): boolean {
+    const exe = this.cachedInstaller;
+    if (!exe || !fs.existsSync(exe)) return false;
+    try {
+      const child = spawn(exe, ["/S"], {
+        detached: true,
+        stdio: "ignore",
+        windowsHide: true,
+      });
+      child.unref();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  hasPendingInstall(): boolean {
+    return !!this.cachedInstaller && fs.existsSync(this.cachedInstaller);
   }
 
   // Convenience: ask the user via native dialog (works even if renderer is broken).

@@ -1,5 +1,5 @@
 {
-  "version": "0.1.6",
-  "url": "https://github.com/morris2016/Recorda/releases/download/v0.1.6/recorda-Setup-0.1.6.exe",
-  "notes": "Floating Stop widget that's invisible to the recording (WDA_EXCLUDEFROMCAPTURE). Always-on-top timer + Stop button so you never need a hotkey. F9 added as fallback for Ctrl+R."
+  "version": "0.1.7",
+  "url": "https://github.com/morris2016/Recorda/releases/download/v0.1.7/recorda-Setup-0.1.7.exe",
+  "notes": "Robust hardware-encoder detection (probes each encoder, never offers NVENC on machines without nvcuda.dll) + Chrome-style silent updates: download in background, install on quit."
 }

@@ -71,7 +71,32 @@ export async function listAudioDevices(): Promise<AudioDevice[]> {
   return devices;
 }
 
+// Probe an encoder by running a 0.1 s dummy encode. Returns true only if
+// ffmpeg actually opens the encoder + accepts at least one frame. Catches
+// the "Cannot load nvcuda.dll" / "QSV not supported" / "AMF init failed"
+// class of errors that don't show up in `ffmpeg -encoders`.
+async function probeEncoder(encoder: string): Promise<boolean> {
+  const ff = ffmpegPath();
+  const args = [
+    "-hide_banner", "-loglevel", "error",
+    "-f", "lavfi", "-i", "testsrc=duration=0.1:size=320x240:rate=30",
+    "-c:v", encoder,
+    "-pix_fmt", "yuv420p",
+    "-f", "null", "-",
+  ];
+  try {
+    await exec(ff, args, { windowsHide: true, timeout: 8000, maxBuffer: 1 * 1024 * 1024 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+let cachedEncoders: EncoderInfo[] | null = null;
+
 export async function detectEncoders(): Promise<EncoderInfo[]> {
+  if (cachedEncoders) return cachedEncoders;
+
   const ff = ffmpegPath();
   let stdout = "";
   try {
@@ -81,13 +106,23 @@ export async function detectEncoders(): Promise<EncoderInfo[]> {
     });
     stdout = r.stdout;
   } catch {
-    return [{ id: "libx264", label: "x264 (CPU)", hwAccel: "none" }];
+    cachedEncoders = [{ id: "libx264", label: "x264 (CPU)", hwAccel: "none" }];
+    return cachedEncoders;
   }
-  const list: EncoderInfo[] = [];
-  if (/h264_nvenc/.test(stdout)) list.push({ id: "h264_nvenc", label: "NVIDIA NVENC (H.264)", hwAccel: "nvenc" });
-  if (/hevc_nvenc/.test(stdout)) list.push({ id: "hevc_nvenc", label: "NVIDIA NVENC (HEVC)", hwAccel: "nvenc" });
-  if (/h264_qsv/.test(stdout)) list.push({ id: "h264_qsv", label: "Intel QuickSync (H.264)", hwAccel: "qsv" });
-  if (/h264_amf/.test(stdout)) list.push({ id: "h264_amf", label: "AMD AMF (H.264)", hwAccel: "amf" });
-  list.push({ id: "libx264", label: "x264 (CPU)", hwAccel: "none" });
-  return list;
+
+  const candidates: EncoderInfo[] = [];
+  if (/h264_nvenc/.test(stdout)) candidates.push({ id: "h264_nvenc", label: "NVIDIA NVENC (H.264)", hwAccel: "nvenc" });
+  if (/hevc_nvenc/.test(stdout)) candidates.push({ id: "hevc_nvenc", label: "NVIDIA NVENC (HEVC)", hwAccel: "nvenc" });
+  if (/h264_qsv/.test(stdout)) candidates.push({ id: "h264_qsv", label: "Intel QuickSync (H.264)", hwAccel: "qsv" });
+  if (/h264_amf/.test(stdout)) candidates.push({ id: "h264_amf", label: "AMD AMF (H.264)", hwAccel: "amf" });
+
+  // Probe in parallel — typically completes in well under 2 s.
+  const results = await Promise.all(candidates.map((c) => probeEncoder(c.id)));
+  const working = candidates.filter((_c, i) => results[i]);
+
+  // libx264 always works (it ships with FFmpeg essentials build).
+  working.push({ id: "libx264", label: "x264 (CPU)", hwAccel: "none" });
+
+  cachedEncoders = working;
+  return working;
 }
