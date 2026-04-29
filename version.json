@@ -1,5 +1,5 @@
 {
-  "version": "0.1.11",
-  "url": "https://github.com/morris2016/Recorda/releases/download/v0.1.11/recorda-Setup-0.1.11.exe",
-  "notes": "Truly automatic updates: 15s after the silent download completes, recorda quits and reinstalls itself with no user action. Countdown banner with Cancel; pauses if you're mid-recording."
+  "version": "0.1.12",
+  "url": "https://github.com/morris2016/Recorda/releases/download/v0.1.12/recorda-Setup-0.1.12.exe",
+  "notes": "Auto-update is now fully silent: no countdown banner, no prompt of any kind. Recorda quits and reinstalls itself ~8s after the download completes. Pauses while recording."
 }

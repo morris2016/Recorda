@@ -39,7 +39,7 @@ let recStartedAt = 0;
 let widgetReadyResolve: (() => void) | null = null;
 let autoInstallDeadline: number | null = null;
 let autoInstallTimer: NodeJS.Timeout | null = null;
-const AUTO_INSTALL_DELAY_SEC = 15;
+const AUTO_INSTALL_DELAY_SEC = 8;
 
 function createMainWindow() {
   mainWin = new BrowserWindow({

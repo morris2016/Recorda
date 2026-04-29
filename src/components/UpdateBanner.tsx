@@ -1,30 +1,31 @@
 import { useEffect, useState } from "react";
-import { ArrowUpRight, Download, X, CheckCircle2, Loader2 } from "lucide-react";
+import { ArrowUpRight, Download, X, Loader2 } from "lucide-react";
 import type { UpdateProgress } from "../types";
 
+// The banner is intentionally minimal — auto-update is otherwise fully
+// silent. We only surface UI for things the user can or should act on:
+//   - "downloading": small progress while the download is in flight
+//   - "available" + URL is not a direct .exe (rare): manual fallback
+//   - "error": surface the failure
+// "ready" / "installing" / "idle" all stay hidden; auto-install fires
+// itself with no prompt.
 export function UpdateBanner() {
   const [state, setState] = useState<UpdateProgress | null>(null);
-  const [autoInstallMs, setAutoInstallMs] = useState<number>(0);
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     window.recorda.getUpdateState().then((s) => { if (!cancelled) setState(s); });
-    const off1 = window.recorda.onUpdateState((s) => { if (!cancelled) setState(s as UpdateProgress); });
-    const off2 = window.recorda.onAutoInstallTick(({ remainingMs }) => {
-      if (!cancelled) setAutoInstallMs(remainingMs);
-    });
+    const off = window.recorda.onUpdateState((s) => { if (!cancelled) setState(s as UpdateProgress); });
     const t = setTimeout(() => window.recorda.checkForUpdate().catch(() => undefined), 4000);
-    return () => { cancelled = true; off1(); off2(); clearTimeout(t); };
+    return () => { cancelled = true; off(); clearTimeout(t); };
   }, []);
 
   if (!state) return null;
 
-  const isAutoInstalling = state.phase === "ready" && autoInstallMs > 0;
   const cantAutoDownload = state.phase === "available" && state.url && !/\.exe(\?|$)/i.test(state.url);
   const visible =
     state.phase === "downloading" ||
-    isAutoInstalling ||
     cantAutoDownload ||
     state.phase === "error";
   if (!visible || dismissed) return null;
@@ -37,9 +38,7 @@ export function UpdateBanner() {
   return (
     <div className="mx-6 mt-3 mb-1 rounded-lg border border-accent/40 bg-accent/10 px-4 py-2.5 flex items-center gap-3">
       <div className="rounded-md bg-accent/20 text-accent p-1.5">
-        {state.phase === "ready" ? (
-          <CheckCircle2 size={16} />
-        ) : state.phase === "downloading" ? (
+        {state.phase === "downloading" ? (
           <Loader2 size={16} className="animate-spin" />
         ) : (
           <ArrowUpRight size={16} />
@@ -54,14 +53,6 @@ export function UpdateBanner() {
               <span className="text-text-faint ml-2">
                 {state.percent ?? 0}%
                 {state.totalBytes ? `  (${formatBytes(state.receivedBytes)} / ${formatBytes(state.totalBytes)})` : ""}
-              </span>
-            </>
-          )}
-          {isAutoInstalling && (
-            <>
-              <span className="font-medium text-text">recorda {state.latest} ready</span>
-              <span className="text-text-faint ml-2">
-                installing in {Math.ceil(autoInstallMs / 1000)} s
               </span>
             </>
           )}
@@ -83,32 +74,15 @@ export function UpdateBanner() {
             />
           </div>
         )}
-        {isAutoInstalling && (
-          <div className="mt-1.5 h-1 rounded-full bg-bg-panel2 overflow-hidden">
-            <div
-              className="h-full bg-accent transition-[width] duration-1000 linear"
-              style={{ width: `${100 - Math.min(100, (autoInstallMs / 15000) * 100)}%` }}
-            />
-          </div>
-        )}
       </div>
 
-      {isAutoInstalling && (
-        <button
-          className="btn btn-secondary text-xs"
-          onClick={() => window.recorda.cancelAutoInstall()}
-          title="Cancel auto-install (will install on quit instead)"
-        >
-          Cancel
-        </button>
-      )}
-      {state.phase === "available" && cantAutoDownload && (
+      {cantAutoDownload && (
         <button className="btn btn-primary text-xs" onClick={onInstall}>
           <Download size={13} /> Install update
         </button>
       )}
 
-      {!isAutoInstalling && state.phase !== "downloading" && (
+      {state.phase !== "downloading" && (
         <button
           className="btn btn-ghost p-1.5"
           onClick={() => setDismissed(true)}
