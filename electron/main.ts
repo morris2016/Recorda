@@ -37,6 +37,9 @@ let regionResolver: ((rect: { x: number; y: number; width: number; height: numbe
 let mainHiddenForRec = false;
 let recStartedAt = 0;
 let widgetReadyResolve: (() => void) | null = null;
+let autoInstallDeadline: number | null = null;
+let autoInstallTimer: NodeJS.Timeout | null = null;
+const AUTO_INSTALL_DELAY_SEC = 15;
 
 function createMainWindow() {
   mainWin = new BrowserWindow({
@@ -226,6 +229,14 @@ function setupIpc() {
 
   updater.on("state", (s) => {
     BrowserWindow.getAllWindows().forEach((w) => w.webContents.send("update:state-change", s));
+    // Once an update is downloaded and ready, auto-install on a short timer.
+    if (s.phase === "ready" && updater.hasPendingInstall()) {
+      scheduleAutoInstall();
+    }
+  });
+
+  ipcMain.on("update:cancel-auto-install", () => {
+    cancelAutoInstall();
   });
 
   ipcMain.on("win:minimize", () => mainWin?.minimize());
@@ -469,6 +480,52 @@ app.on("will-quit", () => {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+function pushAutoInstallTick() {
+  const remainingMs = autoInstallDeadline ? Math.max(0, autoInstallDeadline - Date.now()) : 0;
+  BrowserWindow.getAllWindows().forEach((w) => {
+    try { w.webContents.send("update:auto-install-tick", { remainingMs }); }
+    catch { /* ignore */ }
+  });
+}
+
+function cancelAutoInstall() {
+  if (autoInstallTimer) clearInterval(autoInstallTimer);
+  autoInstallTimer = null;
+  autoInstallDeadline = null;
+  pushAutoInstallTick();
+}
+
+function scheduleAutoInstall() {
+  if (autoInstallTimer) return;            // already running
+  if (!updater.hasPendingInstall()) return;
+  autoInstallDeadline = Date.now() + AUTO_INSTALL_DELAY_SEC * 1000;
+  pushAutoInstallTick();
+
+  autoInstallTimer = setInterval(() => {
+    if (!autoInstallDeadline) return;
+    const recState = recorder.getState();
+    if (recState.status === "recording" || recState.status === "starting" || recState.status === "stopping") {
+      // Pause: hold the deadline at +1s so countdown doesn't expire mid-recording.
+      autoInstallDeadline = Date.now() + 1500;
+      pushAutoInstallTick();
+      return;
+    }
+    const remaining = autoInstallDeadline - Date.now();
+    pushAutoInstallTick();
+    if (remaining <= 0) {
+      if (autoInstallTimer) clearInterval(autoInstallTimer);
+      autoInstallTimer = null;
+      autoInstallDeadline = null;
+      pushAutoInstallTick();
+      // Fire silent install + quit. installAndQuit() spawns NSIS /S detached,
+      // clears the cached path, then app.quit().
+      updater.installAndQuit().catch((e) => {
+        console.error("[recorda] auto-install failed:", e);
+      });
+    }
+  }, 1000);
 }
 
 function captureCenter(req: RecordRequest): { x: number; y: number } {

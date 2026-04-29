@@ -26,10 +26,16 @@ const api = {
   getUpdateState: () => ipcRenderer.invoke("update:state"),
   downloadAndInstallUpdate: () => ipcRenderer.invoke("update:download-and-install"),
   openDownload: (url: string) => ipcRenderer.send("update:open-download", url),
+  cancelAutoInstall: () => ipcRenderer.send("update:cancel-auto-install"),
   onUpdateState: (cb: (s: unknown) => void) => {
     const handler = (_: unknown, s: unknown) => cb(s);
     ipcRenderer.on("update:state-change", handler);
     return () => ipcRenderer.removeListener("update:state-change", handler);
+  },
+  onAutoInstallTick: (cb: (data: { remainingMs: number }) => void) => {
+    const handler = (_: unknown, data: { remainingMs: number }) => cb(data);
+    ipcRenderer.on("update:auto-install-tick", handler);
+    return () => ipcRenderer.removeListener("update:auto-install-tick", handler);
   },
 
   // Window

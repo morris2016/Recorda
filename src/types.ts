@@ -109,7 +109,9 @@ declare global {
       getUpdateState: () => Promise<UpdateProgress>;
       downloadAndInstallUpdate: () => Promise<{ ok: boolean; error?: string }>;
       openDownload: (url: string) => void;
+      cancelAutoInstall: () => void;
       onUpdateState: (cb: (s: UpdateProgress) => void) => () => void;
+      onAutoInstallTick: (cb: (data: { remainingMs: number }) => void) => () => void;
       minimize: () => void;
       maximizeToggle: () => void;
       hideToTray: () => void;
